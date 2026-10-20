@@ -63,8 +63,19 @@ Install Add-on from File**), choose the zip, and tick
     ./install.sh --uninstall
     ./install.sh --dest DIR              # copy into this add-ons folder only
 
-The script asks Blender where its add-ons folder is, copies the add-on there
-and switches it on.
+The script asks Blender where its add-ons folder is, copies the
+`io_import_solidworks` folder there and switches it on. On Linux that is
+`~/.config/blender/<version>/scripts/addons/io_import_solidworks`. If Blender
+is not on the PATH, the script uses the newest version folder under
+`~/.config/blender` and you tick the add-on in Preferences yourself.
+
+If `install.sh` or `install.py` is copied on its own, it downloads the add-on
+from GitHub first.
+
+Don't give Blender GitHub's **Code → Download ZIP** file directly. The add-on
+is one folder down in that zip, so Blender unpacks the whole project into its
+add-ons folder and can't load it. Unpack that zip and run `install.sh` from
+it, or build the right zip with `--zip` or `--extension`.
 
 ## Import options
 

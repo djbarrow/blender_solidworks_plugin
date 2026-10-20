@@ -33,6 +33,31 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ADDON = "io_import_solidworks"
 ADDON_SRC = os.path.join(HERE, ADDON)
 IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc")
+REPO = "https://github.com/djbarrow/blender_solidworks_plugin"
+
+
+def fetch_addon():
+    """install.py was copied on its own: download the add-on folder from GitHub
+    into a temporary folder and install from there."""
+    global ADDON_SRC
+    import atexit
+    import io
+    import tempfile
+    import urllib.request
+    print("%s is missing next to install.py; downloading it from %s" % (ADDON, REPO))
+    url = REPO + "/archive/refs/heads/main.zip"
+    with urllib.request.urlopen(url, timeout=120) as r:
+        data = r.read()
+    tmp = tempfile.mkdtemp(prefix="sw_install_")
+    atexit.register(shutil.rmtree, tmp, True)
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        z.extractall(tmp)
+    for top in os.listdir(tmp):
+        cand = os.path.join(tmp, top, ADDON)
+        if os.path.isfile(os.path.join(cand, "__init__.py")):
+            ADDON_SRC = cand
+            return
+    raise RuntimeError("the download has no %s folder" % ADDON)
 
 
 def build_zip(out=None):
@@ -74,6 +99,33 @@ def ask_addons_dir(blender):
     if "SW_ADDONS" not in found:
         raise SystemExit("FAILED  could not ask Blender for its add-ons folder:\n" + out[-2000:])
     return found["SW_ADDONS"], found.get("SW_VERSION", "?")
+
+
+def _version_key(name):
+    try:
+        return tuple(int(x) for x in name.split("."))
+    except ValueError:
+        return ()
+
+
+def guess_addons_dir():
+    """Without a Blender to ask: the add-ons folder of the newest Blender
+    version that has a user folder, e.g. ~/.config/blender/4.3/scripts/addons."""
+    if sys.platform.startswith("win"):
+        root = os.path.join(os.environ.get("APPDATA", ""), "Blender Foundation", "Blender")
+    elif sys.platform == "darwin":
+        root = os.path.expanduser("~/Library/Application Support/Blender")
+    else:
+        root = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"),
+                            "blender")
+    try:
+        versions = [n for n in os.listdir(root) if _version_key(n)]
+    except OSError:
+        return None, None
+    if not versions:
+        return None, None
+    v = max(versions, key=_version_key)
+    return os.path.join(root, v, "scripts", "addons"), v
 
 
 def enable_and_check(blender):
@@ -132,6 +184,18 @@ def main():
                    help="only build the Blender 4.2+ extension zip")
     args = p.parse_args()
 
+    if not os.path.isfile(os.path.join(ADDON_SRC, "__init__.py")) and not args.uninstall:
+        if args.link:
+            print("FAILED  --link needs a full checkout: git clone %s" % REPO, file=sys.stderr)
+            return 1
+        try:
+            fetch_addon()
+        except Exception as exc:
+            print("FAILED  %s is missing next to install.py and could not be downloaded "
+                  "(%s).\nDownload the whole project from %s and run install.py from it."
+                  % (ADDON, exc, REPO), file=sys.stderr)
+            return 1
+
     if args.extension:
         print("Built %s" % build_extension())
         print("In Blender 4.2+: Edit > Preferences > Get Extensions > (menu) Install from "
@@ -150,10 +214,21 @@ def main():
         dest = os.path.abspath(os.path.expanduser(args.dest))
         version = None
     else:
-        if not blender:
-            print("FAILED  Blender not found; pass --blender PATH or --dest DIR", file=sys.stderr)
-            return 1
-        dest, version = ask_addons_dir(blender)
+        dest = version = None
+        if blender:
+            try:
+                dest, version = ask_addons_dir(blender)
+            except SystemExit as exc:
+                print(exc, file=sys.stderr)
+                blender = None
+        if not dest:
+            dest, version = guess_addons_dir()
+            if not dest:
+                print("FAILED  Blender not found; pass --blender PATH or --dest DIR",
+                      file=sys.stderr)
+                return 1
+            blender = None          # cannot switch it on for you; say how instead
+            print("Using Blender's user folder %s" % dest)
     target = os.path.join(dest, ADDON)
 
     if args.uninstall:
