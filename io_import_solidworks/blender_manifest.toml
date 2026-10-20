@@ -1,0 +1,21 @@
+schema_version = "1.0.0"
+
+id = "solidworks_import"
+version = "2.0.0"
+name = "SolidWorks Import"
+tagline = "Import SolidWorks parts and assemblies"
+maintainer = "Denis Joseph Barrow <barrow_dj@yahoo.com>"
+type = "add-on"
+website = "https://github.com/djbarrow/blender_solidworks_plugin"
+tags = ["Import-Export"]
+
+blender_version_min = "4.2.0"
+
+license = ["SPDX:LGPL-2.1-or-later"]
+copyright = ["2026 Denis Joseph Barrow"]
+
+[permissions]
+files = "Read SolidWorks files and keep a cache of their meshes"
+
+[build]
+paths_exclude_pattern = ["__pycache__/", "*.pyc"]

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
-# SolidWorks Import for FreeCAD - https://github.com/djbarrow/freecad_solidworks_plugin
+# SolidWorks Import for Blender - https://github.com/djbarrow/blender_solidworks_plugin
 # Written by Denis Joseph Barrow <barrow_dj@yahoo.com> with the help of Claude Code.
 # If you find this project useful, please support it with a 10 euro tip
 # via PayPal to barrow_dj@yahoo.com.
@@ -7,9 +7,8 @@
 """Pure-Python evaluation of Parasolid XT curves and surfaces.
 
 Coordinates are in the file's units (metres); parameters follow the XT
-definitions exactly. This is used to sample curves that have no direct
-OpenCASCADE equivalent (intersection curves, SP-curves) and to evaluate
-surfaces in Parasolid's own parameterisation.
+definitions exactly. surfaces.py builds the mesher's surfaces and curves on
+top of these.
 """
 
 import math

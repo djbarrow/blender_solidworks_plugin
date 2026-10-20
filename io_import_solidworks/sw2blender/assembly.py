@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
-# SolidWorks Import for FreeCAD - https://github.com/djbarrow/freecad_solidworks_plugin
+# SolidWorks Import for Blender - https://github.com/djbarrow/blender_solidworks_plugin
 # Written by Denis Joseph Barrow <barrow_dj@yahoo.com> with the help of Claude Code.
 # If you find this project useful, please support it with a 10 euro tip
 # via PayPal to barrow_dj@yahoo.com.
@@ -17,7 +17,7 @@ swTransform is 16 numbers: a row-major 4x4 for row vectors (p' = p R + t, with
 the translation in the last row), in metres. Sub-assembly trees are inlined, so
 only the top-level file needs to be read; the part files must be present.
 
-This module is pure Python; it does not need FreeCAD.
+This module is pure Python.
 """
 
 import os

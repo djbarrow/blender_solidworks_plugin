@@ -14,8 +14,12 @@
     python3 install.py --zip                # only build io_import_solidworks.zip, for
                                             #   Edit > Preferences > Add-ons > Install
 
-Works with Blender 2.79 and later. FreeCAD 0.21 or later must also be
-installed: the add-on uses it to rebuild the SolidWorks geometry.
+Works with Blender 2.79 and later; nothing else needs to be installed.
+Blender 4.2 and later can also take the add-on as an extension:
+
+    python3 install.py --extension          # build solidworks_import-<version>.zip for
+                                            #   Edit > Preferences > Get Extensions >
+                                            #   Install from Disk
 """
 
 import argparse
@@ -95,13 +99,23 @@ def remove(path):
         shutil.rmtree(path)
 
 
-def find_freecad():
-    sys.path.insert(0, ADDON_SRC)
-    try:
-        import runner
-        return runner.find_freecad()
-    finally:
-        sys.path.pop(0)
+def build_extension(out_dir=None):
+    """Zip in the Blender 4.2+ extension layout: the add-on's files at the top."""
+    import re
+    with open(os.path.join(ADDON_SRC, "blender_manifest.toml")) as fh:
+        text = fh.read()
+    ident = re.search(r'^id\s*=\s*"([^"]+)"', text, re.M).group(1)
+    version = re.search(r'^version\s*=\s*"([^"]+)"', text, re.M).group(1)
+    out = os.path.join(out_dir or HERE, "%s-%s.zip" % (ident, version))
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        for dp, dns, fns in os.walk(ADDON_SRC):
+            dns[:] = [d for d in dns if d != "__pycache__"]
+            for n in sorted(fns):
+                if n.endswith(".pyc"):
+                    continue
+                p = os.path.join(dp, n)
+                z.write(p, os.path.relpath(p, ADDON_SRC))
+    return out
 
 
 def main():
@@ -114,7 +128,15 @@ def main():
     p.add_argument("--uninstall", action="store_true", help="remove the add-on")
     p.add_argument("--zip", action="store_true",
                    help="only build %s.zip for Blender's 'Install add-on' button" % ADDON)
+    p.add_argument("--extension", action="store_true",
+                   help="only build the Blender 4.2+ extension zip")
     args = p.parse_args()
+
+    if args.extension:
+        print("Built %s" % build_extension())
+        print("In Blender 4.2+: Edit > Preferences > Get Extensions > (menu) Install from "
+              "Disk, and pick the zip.")
+        return 0
 
     if args.zip:
         print("Built %s" % build_zip())
@@ -165,10 +187,6 @@ def main():
     else:
         print("Enable it in Blender's Preferences > Add-ons: 'Import-Export: SolidWorks Import'.")
 
-    fc = find_freecad()
-    print(("FreeCAD  %s" % fc) if fc else
-          "NOTE     FreeCAD was not found. Install FreeCAD 0.21+ (or set its path in the "
-          "add-on preferences): it is needed to rebuild the SolidWorks geometry.")
     print("Then use File > Import > SolidWorks (.sldprt, .sldasm).")
     return 0
 

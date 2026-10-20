@@ -6,7 +6,7 @@
 
 """Build Blender objects from SolidWorks parts and assemblies.
 
-Works with Blender 2.79 and 2.80+. Meshes come from runner.mesh_parts().
+Works with Blender 2.79 and later. Meshes come from meshcache.mesh_parts().
 Units: SolidWorks geometry is in mm and assembly placements in metres; both
 are multiplied by `scale` so that the default (0.001) gives metres.
 """
@@ -17,9 +17,9 @@ import os
 import bpy
 from mathutils import Matrix
 
-from . import runner
-from .sw2fc import assembly as _asm
-from .sw2fc import folder as _folder
+from . import meshcache
+from .sw2blender import assembly as _asm
+from .sw2blender import folder as _folder
 
 PART_EXTS = (".sldprt", ".x_t", ".x_b", ".xmt_txt", ".xmt_bin")
 ASM_EXTS = (".sldasm",)
@@ -105,8 +105,9 @@ def get_material(rgb, transparency):
             mat.alpha = alpha
     else:
         mat.diffuse_color = (r, g, b, alpha)
-        mat.use_nodes = True
-        bsdf = mat.node_tree.nodes.get("Principled BSDF")
+        if getattr(mat, "node_tree", None) is None:
+            mat.use_nodes = True              # Blender 5.0+ materials always have nodes
+        bsdf = mat.node_tree.nodes.get("Principled BSDF") if mat.node_tree else None
         if bsdf is not None:
             bsdf.inputs["Base Color"].default_value = (r, g, b, 1.0)
             if "Alpha" in bsdf.inputs:
@@ -153,18 +154,17 @@ class Importer:
     """One import run: options, the mesh cache and messages for the user."""
 
     def __init__(self, context, scale=0.001, detail=0.0005, smooth_angle=math.radians(30),
-                 freecad=None, search_dirs=(), global_matrix=None, report=None):
+                 search_dirs=(), global_matrix=None, report=None):
         self.context = context
         self.scale = scale
         self.detail = detail
         self.smooth_angle = smooth_angle
-        self.freecad = freecad
         self.search_dirs = list(search_dirs)
         self.global_matrix = global_matrix if global_matrix is not None else Matrix.Identity(4)
         self.report = report or (lambda level, text: print("SolidWorks import: %s" % text))
         self.warnings = []
         self.meshes = {}          # (part path, body index) -> bpy mesh, shared by instances
-        self.parts = {}           # part path -> runner.PartMesh
+        self.parts = {}           # part path -> meshcache.PartMesh
 
     # ---------------------------------------------------- messages
     def warn(self, text):
@@ -183,12 +183,9 @@ class Importer:
         wm = self.context.window_manager
         wm.progress_begin(0, len(todo))
         try:
-            own = os.path.dirname(os.path.dirname(os.path.realpath(bpy.app.binary_path)))
-            self.parts.update(runner.mesh_parts(
-                todo, detail=self.detail, freecad=self.freecad, log=self.log, own_dir=own,
+            self.parts.update(meshcache.mesh_parts(
+                todo, detail=self.detail, log=self.log,
                 progress=lambda done, total: wm.progress_update(done)))
-        except runner.MeshError as exc:
-            raise ImportFailed(str(exc))
         finally:
             wm.progress_end()
         for p in todo:
@@ -345,8 +342,6 @@ def import_files(context, paths, **options):
             top = imp.import_file(p)
         except ImportFailed as exc:
             errors.append(str(exc))
-            if "FreeCAD was not found" in str(exc) or "FreeCAD failed" in str(exc):
-                break                     # every other file would fail the same way
             continue
         if top is not None:
             tops.append(top)
@@ -363,7 +358,7 @@ def import_folder(context, folder, recursive=False, spacing=0.2, **options):
         raise ImportFailed("no SolidWorks parts or assemblies found in %s" % folder)
     options.setdefault("search_dirs", [folder])
     imp = Importer(context, **options)
-    # one FreeCAD run for every part in the folder instead of one per file
+    # mesh every part first, so progress covers the whole folder
     wanted = list(loose)
     for a in top_asms:
         try:
